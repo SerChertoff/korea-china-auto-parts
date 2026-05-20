@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { CatalogSort, Product } from '../types'
+import type { CatalogSort, Product, ProductReview } from '../types'
 
 export interface ProductQuery {
   search?: string
@@ -84,4 +84,17 @@ export async function fetchProductById(id: string): Promise<Product | null> {
   } catch {
     return null
   }
+}
+
+export async function fetchProductReviews(productId: string): Promise<ProductReview[]> {
+  const { data } = await api.get<{ items: ProductReview[] }>(`/products/${productId}/reviews`)
+  return data.items
+}
+
+export async function postProductReview(
+  productId: string,
+  body: { rating: number; text: string; authorName?: string },
+): Promise<ProductReview> {
+  const { data } = await api.post<ProductReview>(`/products/${productId}/reviews`, body)
+  return data
 }

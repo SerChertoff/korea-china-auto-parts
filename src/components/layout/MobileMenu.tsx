@@ -66,6 +66,9 @@ export function MobileMenu({ open, onClose }: Props) {
               </ul>
             </div>
             <div className="space-y-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+              <Link to="/compare" className="block font-semibold" onClick={onClose}>
+                Сравнение товаров
+              </Link>
               <Link to="/catalog" className="block font-semibold" onClick={onClose}>
                 Все товары
               </Link>

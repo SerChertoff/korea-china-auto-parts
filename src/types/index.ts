@@ -28,6 +28,16 @@ export interface Product {
   description: string
 }
 
+/** Отзыв о товаре (с API) */
+export interface ProductReview {
+  id: string
+  productId: string
+  authorName: string
+  rating: number
+  text: string
+  createdAt: string
+}
+
 /** Позиция в корзине */
 export interface CartItem {
   product: Product

@@ -7,6 +7,7 @@ import {
   Heart,
   Menu,
   Moon,
+  Scale,
   Search,
   ShoppingCart,
   Sun,
@@ -26,6 +27,7 @@ import { useDebounce } from '../../hooks/useDebounce'
 import { fetchSearchSuggest } from '../../services/productService'
 import { useThemeStore, applyThemeClass } from '../../store/themeStore'
 import { useVehicleStore } from '../../store/vehicleStore'
+import { useCompareStore, selectCompareCount } from '../../store/compareStore'
 import { MobileMenu } from './MobileMenu'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
@@ -51,6 +53,7 @@ export function Header() {
   })
   const suggestions = suggestQuery.data ?? []
 
+  const compareCount = useCompareStore(selectCompareCount)
   const { count } = useCart()
   const { user, loginDemo, logout, isAuth } = useAuth()
   const theme = useThemeStore((s) => s.theme)
@@ -219,6 +222,19 @@ export function Header() {
             >
               {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
+
+            <Link
+              to="/compare"
+              className="relative hidden rounded-xl p-2 text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 lg:inline-flex"
+              aria-label={`Сравнение, выбрано товаров: ${compareCount}`}
+            >
+              <Scale className="h-5 w-5" />
+              {compareCount > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+                  {compareCount > 9 ? '9+' : compareCount}
+                </span>
+              ) : null}
+            </Link>
 
             <Button type="button" variant="ghost" className="hidden px-2 lg:inline-flex" aria-label="Избранное">
               <Heart className="h-5 w-5" />

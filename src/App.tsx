@@ -13,6 +13,7 @@ const CategoryPage = lazy(() => import('./pages/CategoryPage'))
 const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage'))
 const AccountPage = lazy(() => import('./pages/AccountPage'))
 const AboutPage = lazy(() => import('./pages/AboutPage'))
+const ComparePage = lazy(() => import('./pages/ComparePage'))
 const ContactPage = lazy(() => import('./pages/ContactPage'))
 
 /** Корневые маршруты приложения */
@@ -25,6 +26,7 @@ export default function App() {
         <Route index element={<HomePage />} />
         <Route path="catalog" element={<CatalogPage />} />
         <Route path="product/:id" element={<ProductPage />} />
+        <Route path="compare" element={<ComparePage />} />
         <Route path="cart" element={<CartPage />} />
         <Route path="checkout" element={<CheckoutPage />} />
         <Route path="brands" element={<BrandPage />} />
