@@ -1,6 +1,7 @@
 import type { Product, VehicleCompatibility } from '../types'
 import { VEHICLE_BRANDS } from './brands'
 import { PART_CATEGORIES } from './categories'
+import { PART_PRODUCT_IMAGE_TRIPLETS } from './partProductImages'
 
 /** Базовые шаблоны наименований для разнообразия каталога */
 const NAME_TEMPLATES: { name: string; oem: string; mfr: string; chars: Record<string, string> }[] =
@@ -337,6 +338,12 @@ const NAME_TEMPLATES: { name: string; oem: string; mfr: string; chars: Record<st
     },
   ]
 
+if (PART_PRODUCT_IMAGE_TRIPLETS.length !== NAME_TEMPLATES.length) {
+  throw new Error(
+    `Число наборов фото (${PART_PRODUCT_IMAGE_TRIPLETS.length}) не совпадает с NAME_TEMPLATES (${NAME_TEMPLATES.length})`,
+  )
+}
+
 function randomCompat(brandName: string): VehicleCompatibility[] {
   const modelMap: Record<string, string[]> = {
     Hyundai: ['Solaris', 'Creta', 'Tucson', 'Santa Fe'],
@@ -373,6 +380,7 @@ function buildProducts(): Product[] {
   const out: Product[] = []
   for (let i = 0; i < 52; i++) {
     const tpl = NAME_TEMPLATES[i % NAME_TEMPLATES.length]!
+    const imgSet = PART_PRODUCT_IMAGE_TRIPLETS[i % NAME_TEMPLATES.length]!
     const brand = VEHICLE_BRANDS[i % VEHICLE_BRANDS.length]!
     const cat = PART_CATEGORIES[i % PART_CATEGORIES.length]!
     const id = `pr-${String(i + 1).padStart(3, '0')}`
@@ -392,11 +400,7 @@ function buildProducts(): Product[] {
       category: cat.id,
       price: basePrice,
       oldPrice,
-      images: [
-        `https://picsum.photos/seed/${id}a/800/800`,
-        `https://picsum.photos/seed/${id}b/800/800`,
-        `https://picsum.photos/seed/${id}c/800/800`,
-      ],
+      images: [...imgSet],
       inStock,
       stockCount,
       rating: ratingFromId(id),
