@@ -68,6 +68,40 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, products: products.length })
 })
 
+app.get('/api/shipping/quote', (req, res) => {
+  const method = String(req.query.method ?? 'cdek')
+  const priceRub =
+    method === 'courier' ? 590 : method === 'post' ? 420 : method === 'cdek' ? 350 : 0
+  const daysMin = method === 'post' ? 7 : 2
+  const daysMax = method === 'post' ? 16 : 6
+  res.json({
+    provider:
+      method === 'cdek'
+        ? 'СДЭК (демо-расчёт)'
+        : method === 'post'
+          ? 'Почта России (демо)'
+          : method === 'courier'
+            ? 'Курьер KR-CN (демо)'
+            : 'Самовывоз',
+    priceRub,
+    daysMin,
+    daysMax,
+    message:
+      'Демо: подключите API перевозчика для реальной стоимости. Параметры запроса не валидируются.',
+  })
+})
+
+app.post('/api/payment/session', (req, res) => {
+  const amountRub = typeof req.body?.amountRub === 'number' ? req.body.amountRub : 0
+  const method = String(req.body?.method ?? 'card')
+  res.json({
+    demo: true,
+    provider: 'yookassa-placeholder',
+    confirmationUrl: null,
+    message: `Демо-сессия оплаты (${method}). К оплате: ${amountRub} ₽. Для боя подключите ЮKassa / CloudPayments и т.д.`,
+  })
+})
+
 /** Важно: статические пути до :id */
 app.get('/api/products/suggest', (req, res) => {
   const q = String(req.query.q ?? '')
@@ -237,6 +271,7 @@ const orderSchema = z.object({
     method: z.string(),
     address: z.string(),
     comment: z.string().optional(),
+    npPickup: z.string().optional(),
   }),
   payment: z.object({ method: z.string() }),
   clientTotal: z.number().optional(),

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { SeoHead } from '../components/common/SeoHead'
 import { Breadcrumbs } from '../components/common/Breadcrumbs'
@@ -17,7 +17,9 @@ import {
   type CheckoutPayment,
 } from '../utils/checkoutSchemas'
 import { submitOrder } from '../services/orderService'
+import { createPaymentSessionDemo, fetchShippingQuote, type PaymentSessionDemo, type ShippingQuote } from '../services/checkoutIntegrations'
 import { formatPrice } from '../utils/formatters'
+import { formatRuPhoneInput, ruPhoneToE164 } from '../utils/phoneRu'
 
 type Step = 0 | 1 | 2 | 3
 
@@ -28,6 +30,9 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<Step>(0)
   const [doneId, setDoneId] = useState<string | null>(null)
   const [receipt, setReceipt] = useState<{ lines: typeof items; subtotal: number; total: number } | null>(null)
+  const [quote, setQuote] = useState<ShippingQuote | null>(null)
+  const [quoteErr, setQuoteErr] = useState<string | null>(null)
+  const [payInfo, setPayInfo] = useState<PaymentSessionDemo | null>(null)
 
   const contactForm = useForm<CheckoutContact>({
     resolver: zodResolver(checkoutContactSchema),
@@ -35,20 +40,68 @@ export default function CheckoutPage() {
   })
   const deliveryForm = useForm<CheckoutDelivery>({
     resolver: zodResolver(checkoutDeliverySchema),
-    defaultValues: { method: 'cdek', address: '', comment: '' },
+    defaultValues: { method: 'cdek', address: '', comment: '', npPickup: '' },
   })
   const paymentForm = useForm<CheckoutPayment>({
     resolver: zodResolver(checkoutPaymentSchema),
     defaultValues: { method: 'card' },
   })
 
+  const paymentMethod = useWatch({ control: paymentForm.control, name: 'method' })
+  const deliveryMethod = useWatch({ control: deliveryForm.control, name: 'method' })
+
+  useEffect(() => {
+    if (deliveryMethod !== 'pickup') return
+    const a = deliveryForm.getValues('address').trim()
+    if (a.length < 5) {
+      deliveryForm.setValue('address', 'Самовывоз — склад KR-CN Parts (демо)', { shouldValidate: true })
+    }
+  }, [deliveryMethod, deliveryForm])
+
+  useEffect(() => {
+    if (step !== 2) {
+      setPayInfo(null)
+      return
+    }
+    let cancelled = false
+    void createPaymentSessionDemo({ amountRub: total, method: paymentMethod })
+      .then((r) => {
+        if (!cancelled) setPayInfo(r)
+      })
+      .catch(() => {
+        if (!cancelled) setPayInfo(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [step, total, paymentMethod])
+
   const steps = useMemo(
     () => ['Контакты', 'Доставка', 'Оплата', 'Подтверждение'] as const,
     [],
   )
 
+  async function loadShippingQuote() {
+    setQuoteErr(null)
+    const ok = await deliveryForm.trigger()
+    if (!ok) return
+    try {
+      const d = deliveryForm.getValues()
+      const q = await fetchShippingQuote({
+        method: d.method,
+        address: d.address,
+        npPickup: d.npPickup,
+      })
+      setQuote(q)
+    } catch {
+      setQuote(null)
+      setQuoteErr('Не удалось получить расчёт. Запустите API (npm run dev:server).')
+    }
+  }
+
   async function finalize() {
-    const contact = contactForm.getValues()
+    const contactRaw = contactForm.getValues()
+    const contact = { ...contactRaw, phone: ruPhoneToE164(contactRaw.phone) }
     const delivery = deliveryForm.getValues()
     const payment = paymentForm.getValues()
     setReceipt({ lines: items, subtotal, total })
@@ -108,7 +161,23 @@ export default function CheckoutPage() {
                 onSubmit={contactForm.handleSubmit(() => setStep(1))}
               >
                 <Input label="ФИО" {...contactForm.register('name')} error={contactForm.formState.errors.name?.message} />
-                <Input label="Телефон" {...contactForm.register('phone')} error={contactForm.formState.errors.phone?.message} />
+                <Controller
+                  name="phone"
+                  control={contactForm.control}
+                  render={({ field }) => (
+                    <Input
+                      label="Телефон"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="+7 (999) 123-45-67"
+                      value={field.value}
+                      onChange={(e) => field.onChange(formatRuPhoneInput(e.target.value))}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      error={contactForm.formState.errors.phone?.message}
+                    />
+                  )}
+                />
                 <Input label="Email" type="email" {...contactForm.register('email')} error={contactForm.formState.errors.email?.message} />
                 <Button type="submit" variant="primary">
                   Далее
@@ -134,7 +203,40 @@ export default function CheckoutPage() {
                   </select>
                 </div>
                 <Input label="Адрес / ПВЗ" {...deliveryForm.register('address')} error={deliveryForm.formState.errors.address?.message} />
+                {deliveryMethod === 'cdek' ? (
+                  <Input
+                    label="Код ПВЗ СДЭК (демо)"
+                    placeholder="MSK123"
+                    {...deliveryForm.register('npPickup')}
+                    error={deliveryForm.formState.errors.npPickup?.message}
+                  />
+                ) : null}
                 <Input label="Комментарий" {...deliveryForm.register('comment')} />
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Расчёт доставки (демо API)</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                    Запрос к <span className="font-mono">GET /api/shipping/quote</span> — замените на интеграцию с перевозчиком.
+                  </p>
+                  <Button type="button" variant="outline" className="mt-3" onClick={() => void loadShippingQuote()}>
+                    Рассчитать доставку
+                  </Button>
+                  {quoteErr ? <p className="mt-2 text-xs text-red-600">{quoteErr}</p> : null}
+                  {quote ? (
+                    <div className="mt-3 space-y-1 text-slate-700 dark:text-slate-200">
+                      <div>
+                        <span className="text-slate-500">Провайдер:</span> {quote.provider}
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Стоимость:</span>{' '}
+                        <span className="font-mono font-bold">{formatPrice(quote.priceRub)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Срок:</span> {quote.daysMin}–{quote.daysMax} дн.
+                      </div>
+                      <p className="text-xs text-slate-500">{quote.message}</p>
+                    </div>
+                  ) : null}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => setStep(0)}>
                     Назад
@@ -151,6 +253,14 @@ export default function CheckoutPage() {
             <Card className="p-5">
               <h2 className="font-display text-xl font-bold">Оплата</h2>
               <form className="mt-4 grid gap-3" onSubmit={paymentForm.handleSubmit(() => setStep(3))}>
+                <div className="rounded-xl border border-amber-100 bg-amber-50/80 p-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+                  <p className="font-semibold">Интеграция оплаты (заглушка)</p>
+                  <p className="mt-1 text-xs opacity-90">
+                    Запрос <span className="font-mono">POST /api/payment/session</span> — в бою здесь будет редирект на
+                    платёжный шлюз.
+                  </p>
+                  {payInfo ? <p className="mt-2 text-xs leading-relaxed">{payInfo.message}</p> : null}
+                </div>
                 <div className="space-y-2">
                   <span className="text-sm font-medium">Способ оплаты</span>
                   <select

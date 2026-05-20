@@ -24,6 +24,8 @@ npm run dev:full
 ## API (Express)
 
 - `GET /api/health` — проверка
+- `GET /api/shipping/quote` — демо-расчёт доставки (method, address, npPickup)
+- `POST /api/payment/session` — демо-сессия оплаты (amountRub, method)
 - `GET /api/products` — каталог (query: search, brand, category, priceMin, priceMax, inStockOnly, originalOnly, sort, page, pageSize)
 - `GET /api/products/offset` — порции для бесконечного скролла (offset, limit, те же фильтры)
 - `GET /api/products/suggest?q=` — подсказки поиска

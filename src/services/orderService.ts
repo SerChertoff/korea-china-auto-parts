@@ -3,7 +3,7 @@ import type { CartItem } from '../types'
 
 export interface CheckoutPayload {
   contact: { name: string; phone: string; email: string }
-  delivery: { method: string; address: string; comment?: string }
+  delivery: { method: string; address: string; comment?: string; npPickup?: string }
   payment: { method: string }
   items: CartItem[]
   total: number
