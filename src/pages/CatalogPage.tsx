@@ -1,25 +1,39 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { LayoutGrid, List, X } from 'lucide-react'
 import { SeoHead } from '../components/common/SeoHead'
 import { Breadcrumbs } from '../components/common/Breadcrumbs'
-import { Pagination } from '../components/common/Pagination'
 import { ProductGrid } from '../components/product/ProductGrid'
 import { ProductFilters } from '../components/product/ProductFilters'
 import { Sidebar } from '../components/layout/Sidebar'
 import { ProductCardSkeleton } from '../components/ui/Skeleton'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { Loader } from '../components/common/Loader'
 import { useDebounce } from '../hooks/useDebounce'
 import { useFiltersStore } from '../store/filtersStore'
 import { useVehicleStore } from '../store/vehicleStore'
-import { fetchProducts } from '../services/productService'
+import { fetchProductsOffset } from '../services/productService'
 import { PART_CATEGORIES } from '../data/categories'
+import type { CatalogSort, CatalogViewMode } from '../types'
 
-/** Каталог: фильтры, сортировка, переключение вида, пагинация */
+const PAGE_SIZE = 12
+
+const SORTS: CatalogSort[] = ['popular', 'price-asc', 'price-desc', 'new', 'rating']
+
+function parseSort(v: string | null): CatalogSort {
+  return v && SORTS.includes(v as CatalogSort) ? (v as CatalogSort) : 'popular'
+}
+
+function parseView(v: string | null): CatalogViewMode {
+  return v === 'list' ? 'list' : 'grid'
+}
+
+/** Каталог: фильтры, URL, бесконечный скролл */
 export default function CatalogPage() {
-  const [params] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const paramsKey = searchParams.toString()
   const vehicle = useVehicleStore((s) => s.vehicle)
 
   const search = useFiltersStore((s) => s.search)
@@ -31,7 +45,6 @@ export default function CatalogPage() {
   const originalOnly = useFiltersStore((s) => s.originalOnly)
   const sort = useFiltersStore((s) => s.sort)
   const view = useFiltersStore((s) => s.view)
-  const page = useFiltersStore((s) => s.page)
 
   const setSearch = useFiltersStore((s) => s.setSearch)
   const setBrand = useFiltersStore((s) => s.setBrand)
@@ -42,39 +55,96 @@ export default function CatalogPage() {
   const setOriginalOnly = useFiltersStore((s) => s.setOriginalOnly)
   const setSort = useFiltersStore((s) => s.setSort)
   const setView = useFiltersStore((s) => s.setView)
-  const setPage = useFiltersStore((s) => s.setPage)
   const resetFilters = useFiltersStore((s) => s.resetFilters)
 
-  /** Синхронизация URL → фильтры при первом заходе и смене query */
+  const skipUrlToStore = useRef(false)
+  const lastWritten = useRef<string | null>(null)
+
+  /** URL → store (назад/вперёд в браузере и прямые ссылки) */
   useEffect(() => {
-    const q = params.get('q') ?? ''
-    const vin = params.get('vin') ?? ''
-    const b = params.get('brand') ?? ''
-    const c = params.get('category') ?? ''
+    if (skipUrlToStore.current) {
+      skipUrlToStore.current = false
+      return
+    }
+    const q = searchParams.get('q') ?? ''
+    const vin = searchParams.get('vin') ?? ''
+    const b = searchParams.get('brand') ?? ''
+    const c = searchParams.get('category') ?? ''
+    const pmin = searchParams.get('priceMin')
+    const pmax = searchParams.get('priceMax')
+    const stock = searchParams.get('stock')
+    const orig = searchParams.get('orig')
+
     if (q) setSearch(q)
     else if (vin) setSearch(vin)
-    if (b) setBrand(b)
-    if (c) setCategory(c)
-  }, [params, setSearch, setBrand, setCategory])
+    else setSearch('')
+
+    setBrand(b)
+    setCategory(c)
+    if (pmin != null && pmin !== '') setPriceMin(Number(pmin) || 0)
+    else setPriceMin(0)
+    if (pmax != null && pmax !== '') setPriceMax(Number(pmax) || 120_000)
+    else setPriceMax(120_000)
+    setInStockOnly(stock === '1')
+    setOriginalOnly(orig === '1')
+    setSort(parseSort(searchParams.get('sort')))
+    setView(parseView(searchParams.get('view')))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- синхронизация по строке query
+  }, [paramsKey])
 
   const debouncedSearch = useDebounce(search, 350)
 
-  const query = useQuery({
-    queryKey: [
-      'products',
-      debouncedSearch,
-      brand,
-      category,
-      priceMin,
-      priceMax,
-      inStockOnly,
-      originalOnly,
-      sort,
-      page,
-    ],
-    queryFn: () =>
-      fetchProducts({
-        search: debouncedSearch,
+  /** Store → URL */
+  useEffect(() => {
+    const sp = new URLSearchParams()
+    const t = debouncedSearch.trim()
+    if (t) sp.set('q', t)
+    if (brand) sp.set('brand', brand)
+    if (category) sp.set('category', category)
+    if (priceMin > 0) sp.set('priceMin', String(priceMin))
+    if (priceMax < 120_000) sp.set('priceMax', String(priceMax))
+    if (inStockOnly) sp.set('stock', '1')
+    if (originalOnly) sp.set('orig', '1')
+    if (sort !== 'popular') sp.set('sort', sort)
+    if (view !== 'grid') sp.set('view', view)
+    const next = sp.toString()
+    if (next === lastWritten.current) return
+    lastWritten.current = next
+    skipUrlToStore.current = true
+    setSearchParams(sp, { replace: true })
+  }, [
+    debouncedSearch,
+    brand,
+    category,
+    priceMin,
+    priceMax,
+    inStockOnly,
+    originalOnly,
+    sort,
+    view,
+    setSearchParams,
+  ])
+
+  const filterKey = useMemo(
+    () =>
+      [
+        debouncedSearch,
+        brand,
+        category,
+        priceMin,
+        priceMax,
+        inStockOnly,
+        originalOnly,
+        sort,
+      ].join('|'),
+    [debouncedSearch, brand, category, priceMin, priceMax, inStockOnly, originalOnly, sort],
+  )
+
+  const inf = useInfiniteQuery({
+    queryKey: ['catalog-inf', filterKey],
+    queryFn: ({ pageParam }) =>
+      fetchProductsOffset({
+        search: debouncedSearch || undefined,
         brand: brand || undefined,
         category: category || undefined,
         priceMin,
@@ -82,10 +152,31 @@ export default function CatalogPage() {
         inStockOnly,
         originalOnly,
         sort,
-        page,
-        pageSize: 12,
+        offset: pageParam as number,
+        limit: PAGE_SIZE,
       }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.nextOffset ?? undefined,
   })
+
+  const items = useMemo(() => inf.data?.pages.flatMap((p) => p.items) ?? [], [inf.data])
+  const total = inf.data?.pages[0]?.total ?? 0
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        const hit = entries[0]?.isIntersecting
+        if (hit && inf.hasNextPage && !inf.isFetchingNextPage) void inf.fetchNextPage()
+      },
+      { rootMargin: '240px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [inf.hasNextPage, inf.isFetchingNextPage, inf.fetchNextPage])
 
   const chips = useMemo(() => {
     const out: { key: string; label: string; onClear: () => void }[] = []
@@ -96,13 +187,35 @@ export default function CatalogPage() {
       const name = PART_CATEGORIES.find((x) => x.id === category)?.name ?? category
       out.push({ key: 'c', label: `Категория: ${name}`, onClear: () => setCategory('') })
     }
+    if (priceMin > 0) out.push({ key: 'pmin', label: `Цена от ${priceMin}`, onClear: () => setPriceMin(0) })
+    if (priceMax < 120_000)
+      out.push({ key: 'pmax', label: `Цена до ${priceMax}`, onClear: () => setPriceMax(120_000) })
     if (inStockOnly) out.push({ key: 's', label: 'В наличии', onClear: () => setInStockOnly(false) })
     if (originalOnly) out.push({ key: 'o', label: 'Только оригинал', onClear: () => setOriginalOnly(false) })
     return out
-  }, [search, brand, category, inStockOnly, originalOnly, setSearch, setBrand, setCategory, setInStockOnly, setOriginalOnly])
+  }, [
+    search,
+    brand,
+    category,
+    priceMin,
+    priceMax,
+    inStockOnly,
+    originalOnly,
+    setSearch,
+    setBrand,
+    setCategory,
+    setPriceMin,
+    setPriceMax,
+    setInStockOnly,
+    setOriginalOnly,
+  ])
 
-  const items = query.data?.items ?? []
-  const total = query.data?.total ?? 0
+  const onReset = useCallback(() => {
+    lastWritten.current = null
+    resetFilters()
+    skipUrlToStore.current = true
+    setSearchParams(new URLSearchParams(), { replace: true })
+  }, [resetFilters, setSearchParams])
 
   return (
     <>
@@ -115,7 +228,7 @@ export default function CatalogPage() {
               Каталог
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Найдено: <span className="font-mono font-semibold">{total}</span> позиций
+              Найдено: <span className="font-mono font-semibold">{total}</span> позиций · прокрутите вниз для подгрузки
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -156,7 +269,7 @@ export default function CatalogPage() {
               <X className="h-3.5 w-3.5" aria-hidden />
             </button>
           ))}
-          <Button type="button" variant="ghost" className="px-2 py-1 text-xs" onClick={() => resetFilters()}>
+          <Button type="button" variant="ghost" className="px-2 py-1 text-xs" onClick={onReset}>
             Сбросить всё
           </Button>
         </div>
@@ -166,23 +279,23 @@ export default function CatalogPage() {
         <div className="col-span-12 lg:col-span-3">
           <Sidebar title="Фильтры каталога">
             <ProductFilters
-            search={search}
-            brand={brand}
-            category={category}
-            priceMin={priceMin}
-            priceMax={priceMax}
-            inStockOnly={inStockOnly}
-            originalOnly={originalOnly}
-            sort={sort}
-            onSearch={setSearch}
-            onBrand={setBrand}
-            onCategory={setCategory}
-            onPriceMin={setPriceMin}
-            onPriceMax={setPriceMax}
-            onInStock={setInStockOnly}
-            onOriginal={setOriginalOnly}
-            onSort={setSort}
-            onReset={() => resetFilters()}
+              search={search}
+              brand={brand}
+              category={category}
+              priceMin={priceMin}
+              priceMax={priceMax}
+              inStockOnly={inStockOnly}
+              originalOnly={originalOnly}
+              sort={sort}
+              onSearch={setSearch}
+              onBrand={setBrand}
+              onCategory={setCategory}
+              onPriceMin={setPriceMin}
+              onPriceMax={setPriceMax}
+              onInStock={setInStockOnly}
+              onOriginal={setOriginalOnly}
+              onSort={setSort}
+              onReset={onReset}
             />
           </Sidebar>
           {vehicle ? (
@@ -199,7 +312,7 @@ export default function CatalogPage() {
         </div>
 
         <div className="col-span-12 lg:col-span-9">
-          {query.isLoading ? (
+          {inf.isPending ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <ProductCardSkeleton key={i} />
@@ -209,8 +322,11 @@ export default function CatalogPage() {
             <ProductGrid products={items} view={view} />
           )}
 
-          <div className="mt-8">
-            <Pagination page={page} pageSize={12} total={total} onPageChange={setPage} />
+          <div ref={sentinelRef} className="mt-10 flex min-h-16 items-center justify-center py-6">
+            {inf.isFetchingNextPage ? <Loader label="Подгружаем…" /> : null}
+            {!inf.hasNextPage && items.length > 0 ? (
+              <span className="text-sm text-slate-500">Все товары загружены</span>
+            ) : null}
           </div>
         </div>
       </div>

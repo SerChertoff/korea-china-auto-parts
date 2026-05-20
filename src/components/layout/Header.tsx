@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   Car,
   ChevronDown,
@@ -21,6 +22,8 @@ import { Modal } from '../ui/Modal'
 import { CartDrawer } from '../cart/CartDrawer'
 import { useCart } from '../../hooks/useCart'
 import { useAuth } from '../../hooks/useAuth'
+import { useDebounce } from '../../hooks/useDebounce'
+import { fetchSearchSuggest } from '../../services/productService'
 import { useThemeStore, applyThemeClass } from '../../store/themeStore'
 import { useVehicleStore } from '../../store/vehicleStore'
 import { MobileMenu } from './MobileMenu'
@@ -37,7 +40,16 @@ export function Header() {
   const [megaOpen, setMegaOpen] = useState(false)
   const [vehicleOpen, setVehicleOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [suggestOpen, setSuggestOpen] = useState(false)
   const closeTimer = useRef<number | null>(null)
+  const debouncedQ = useDebounce(q, 220)
+
+  const suggestQuery = useQuery({
+    queryKey: ['header-suggest', debouncedQ],
+    queryFn: () => fetchSearchSuggest(debouncedQ),
+    enabled: debouncedQ.trim().length >= 2,
+  })
+  const suggestions = suggestQuery.data ?? []
 
   const { count } = useCart()
   const { user, loginDemo, logout, isAuth } = useAuth()
@@ -146,11 +158,54 @@ export function Header() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => {
+                  setQ(e.target.value)
+                  setSuggestOpen(true)
+                }}
+                onFocus={() => setSuggestOpen(true)}
+                onBlur={() => window.setTimeout(() => setSuggestOpen(false), 180)}
                 placeholder="Поиск по артикулу, OEM, названию…"
                 className="w-full rounded-2xl border border-slate-200 bg-surface py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
                 aria-label="Поиск по каталогу"
+                aria-autocomplete="list"
+                aria-expanded={suggestOpen && suggestions.length > 0}
               />
+              {suggestOpen && suggestions.length > 0 ? (
+                <ul
+                  className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+                  role="listbox"
+                >
+                  {suggestions.map((p) => (
+                    <li key={p.id} role="option">
+                      <button
+                        type="button"
+                        className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setSuggestOpen(false)
+                          navigate(`/product/${p.id}`)
+                        }}
+                      >
+                        <span className="font-medium text-slate-900 dark:text-white">{p.name}</span>
+                        <span className="font-mono text-xs text-slate-500">{p.article}</span>
+                      </button>
+                    </li>
+                  ))}
+                  <li className="border-t border-slate-100 px-2 py-1 dark:border-slate-800">
+                    <button
+                      type="button"
+                      className="w-full rounded-lg px-2 py-2 text-left text-sm font-semibold text-primary hover:bg-slate-50 dark:hover:bg-slate-800"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setSuggestOpen(false)
+                        navigate(`/catalog?q=${encodeURIComponent(q.trim())}`)
+                      }}
+                    >
+                      Все результаты для «{q.trim()}»
+                    </button>
+                  </li>
+                </ul>
+              ) : null}
             </div>
           </form>
 
@@ -230,11 +285,37 @@ export function Header() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => {
+                  setQ(e.target.value)
+                  setSuggestOpen(true)
+                }}
+                onFocus={() => setSuggestOpen(true)}
+                onBlur={() => window.setTimeout(() => setSuggestOpen(false), 180)}
                 placeholder="Быстрый поиск…"
                 className="w-full rounded-2xl border border-slate-200 bg-surface py-2.5 pl-10 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900"
                 aria-label="Поиск по каталогу"
+                aria-expanded={suggestOpen && suggestions.length > 0}
               />
+              {suggestOpen && suggestions.length > 0 ? (
+                <ul className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                  {suggestions.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setSuggestOpen(false)
+                          navigate(`/product/${p.id}`)
+                        }}
+                      >
+                        <span className="font-medium">{p.name}</span>
+                        <span className="font-mono text-xs text-slate-500">{p.article}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           </form>
           <button
