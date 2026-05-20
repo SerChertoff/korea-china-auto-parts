@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -5,6 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { motion } from 'framer-motion'
 import { ArrowRight, CheckCircle2, Package, Shield, Truck } from 'lucide-react'
 import { SeoHead } from '../components/common/SeoHead'
+import { SITE_EMAIL, SITE_PHONE } from '../utils/constants'
+import { SITE_NAME, absoluteUrl, getSiteOrigin } from '../utils/siteMeta'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
@@ -47,11 +50,37 @@ export default function HomePage() {
     defaultValues: { name: '', phone: '', comment: '' },
   })
 
+  const homeJsonLd = useMemo(() => {
+    if (!getSiteOrigin()) return undefined
+    return [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: SITE_NAME,
+        url: absoluteUrl('/'),
+        email: SITE_EMAIL,
+        telephone: SITE_PHONE,
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: SITE_NAME,
+        url: absoluteUrl('/'),
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: `${absoluteUrl('/catalog')}?q={search_term_string}`,
+          'query-input': 'required name=search_term_string',
+        },
+      },
+    ]
+  }, [])
+
   return (
     <>
       <SeoHead
         title="KR‑CN Parts — автозапчасти Hyundai, Kia, Chery, Haval"
         description="Оригинальные и проверенные аналоги для корейских и китайских авто. Быстрая доставка, подбор по VIN."
+        jsonLd={homeJsonLd}
       />
 
       {/* Hero */}

@@ -12,7 +12,7 @@ export default function CartPage() {
 
   return (
     <>
-      <SeoHead title="Корзина — KR‑CN Parts" description="Проверьте состав заказа перед оформлением." />
+      <SeoHead title="Корзина — KR‑CN Parts" description="Проверьте состав заказа перед оформлением." noindex />
       <Breadcrumbs items={[{ label: 'Главная', to: '/' }, { label: 'Корзина' }]} />
       <h1 className="mt-4 font-display text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
         Корзина

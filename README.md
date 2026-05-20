@@ -21,6 +21,8 @@ npm run dev:full
 
 Или отдельно: `npm run dev:server` (порт **4000**) и `npm run dev` (Vite, порт **5173**). Vite проксирует `/api` → `http://localhost:4000`.
 
+Переменная **`VITE_SITE_URL`** (см. `.env.example`) задаёт канонический домен для SEO: Open Graph, canonical, JSON-LD, а также `sitemap.xml` и `robots.txt` при `npm run build`. В dev без `.env` используется `http://localhost:5173`.
+
 ## API (Express)
 
 - `GET /api/health` — проверка

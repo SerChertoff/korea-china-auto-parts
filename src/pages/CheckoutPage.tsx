@@ -119,7 +119,7 @@ export default function CheckoutPage() {
   if (items.length === 0 && step < 3) {
     return (
       <>
-        <SeoHead title="Оформление заказа" />
+        <SeoHead title="Оформление заказа" noindex />
         <div className="rounded-2xl border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900">
           <h1 className="font-display text-2xl font-bold">Корзина пуста</h1>
           <p className="mt-2 text-slate-600 dark:text-slate-300">Добавьте товары, чтобы оформить заказ.</p>
@@ -133,7 +133,7 @@ export default function CheckoutPage() {
 
   return (
     <>
-      <SeoHead title="Оформление заказа — KR‑CN Parts" />
+      <SeoHead title="Оформление заказа — KR‑CN Parts" noindex />
       <Breadcrumbs items={[{ label: 'Главная', to: '/' }, { label: 'Оформление' }]} />
       <h1 className="mt-4 font-display text-3xl font-extrabold text-slate-900 dark:text-white">Оформление заказа</h1>
 

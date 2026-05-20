@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
@@ -14,6 +14,7 @@ import { Loader } from '../components/common/Loader'
 import { Input } from '../components/ui/Input'
 import { fetchProductById, fetchProductReviews, fetchProducts, postProductReview } from '../services/productService'
 import { formatPrice, reviewsWord } from '../utils/formatters'
+import { absoluteUrl, getSiteOrigin } from '../utils/siteMeta'
 import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import { useCompareStore } from '../store/compareStore'
@@ -70,6 +71,27 @@ export default function ProductPage() {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   )
 
+  const productJsonLd = useMemo(() => {
+    if (!p || !getSiteOrigin()) return undefined
+    const absImages = p.images.filter((u) => /^https?:\/\//i.test(u))
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: p.name,
+      sku: p.article,
+      ...(absImages.length ? { image: absImages } : {}),
+      description: p.description.slice(0, 800),
+      brand: { '@type': 'Brand', name: p.brand },
+      offers: {
+        '@type': 'Offer',
+        url: absoluteUrl(`/product/${p.id}`),
+        priceCurrency: 'RUB',
+        price: p.price,
+        availability: p.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      },
+    }
+  }, [p])
+
   function onToggleCompare() {
     if (!p) return
     const ok = toggleCompare(p)
@@ -112,7 +134,13 @@ export default function ProductPage() {
 
   return (
     <div className="pb-24 sm:pb-0">
-      <SeoHead title={`${p.name} — KR‑CN Parts`} description={p.description.slice(0, 160)} />
+      <SeoHead
+        title={`${p.name} — KR‑CN Parts`}
+        description={p.description.slice(0, 160)}
+        ogType="product"
+        ogImage={p.images[0] && /^https?:\/\//i.test(p.images[0]) ? p.images[0] : undefined}
+        jsonLd={productJsonLd}
+      />
       <div className="mb-6">
         <Breadcrumbs
           items={[
