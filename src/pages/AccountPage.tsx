@@ -5,13 +5,15 @@ import { useAuth } from '../hooks/useAuth'
 
 /** Личный кабинет (демо) */
 export default function AccountPage() {
-  const { user, loginDemo, logout, isAuth } = useAuth()
+  const { user, loginDemo, logout, isAuth, ready } = useAuth()
   return (
     <>
       <SeoHead title="Личный кабинет — KR‑CN Parts" />
       <h1 className="font-display text-3xl font-extrabold text-slate-900 dark:text-white">Личный кабинет</h1>
       <Card className="mt-6 max-w-xl p-6">
-        {isAuth ? (
+        {!ready ? (
+          <p className="text-slate-600 dark:text-slate-300">Загрузка сессии…</p>
+        ) : isAuth ? (
           <div className="space-y-2">
             <div className="text-sm text-slate-600 dark:text-slate-300">Вы вошли как</div>
             <div className="text-lg font-bold text-slate-900 dark:text-white">{user?.name}</div>
@@ -23,7 +25,17 @@ export default function AccountPage() {
         ) : (
           <div className="space-y-3">
             <p className="text-slate-700 dark:text-slate-200">Демо-вход без пароля для просмотра сценариев.</p>
-            <Button type="button" variant="primary" onClick={() => loginDemo()}>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() =>
+                void loginDemo().catch(() =>
+                  alert(
+                    'Сервер API не отвечает. Запустите в корне проекта: npm run dev:server (или npm run dev:full вместе с фронтом).',
+                  ),
+                )
+              }
+            >
               Войти демо-пользователем
             </Button>
           </div>

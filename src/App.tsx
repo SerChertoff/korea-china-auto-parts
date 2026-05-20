@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { MainLayout } from './components/layout/MainLayout'
+import { AuthBootstrap } from './components/common/AuthBootstrap'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
 const CatalogPage = lazy(() => import('./pages/CatalogPage'))
@@ -17,7 +18,9 @@ const ContactPage = lazy(() => import('./pages/ContactPage'))
 /** Корневые маршруты приложения */
 export default function App() {
   return (
-    <Routes>
+    <>
+      <AuthBootstrap />
+      <Routes>
       <Route element={<MainLayout />}>
         <Route index element={<HomePage />} />
         <Route path="catalog" element={<CatalogPage />} />
@@ -32,5 +35,6 @@ export default function App() {
         <Route path="contact" element={<ContactPage />} />
       </Route>
     </Routes>
+    </>
   )
 }

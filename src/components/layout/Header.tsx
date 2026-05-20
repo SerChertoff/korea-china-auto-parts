@@ -180,7 +180,16 @@ export function Header() {
                 </Button>
               </div>
             ) : (
-              <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={() => loginDemo()}>
+              <Button
+                type="button"
+                variant="outline"
+                className="hidden sm:inline-flex"
+                onClick={() =>
+                  void loginDemo().catch(() =>
+                    alert('Запустите API: npm run dev:server (порт 4000).'),
+                  )
+                }
+              >
                 <User className="h-4 w-4" />
                 Войти
               </Button>

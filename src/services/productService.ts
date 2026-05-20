@@ -1,5 +1,5 @@
+import { api } from './api'
 import type { CatalogSort, Product } from '../types'
-import { MOCK_PRODUCTS } from '../data/mockProducts'
 
 export interface ProductQuery {
   search?: string
@@ -21,50 +21,67 @@ export interface ProductListResult {
   pageSize: number
 }
 
-/** Имитация задержки сети для демонстрации скелетонов и React Query */
-function delay(ms: number) {
-  return new Promise((r) => setTimeout(r, ms))
+export interface ProductOffsetResult {
+  items: Product[]
+  total: number
+  offset: number
+  limit: number
+  nextOffset: number | null
 }
 
-/** Локальная фильтрация мок-каталога (вместо бэкенда на этапе прототипа) */
+/** Список товаров (пагинация) */
 export async function fetchProducts(q: ProductQuery): Promise<ProductListResult> {
-  await delay(380)
-  let list = [...MOCK_PRODUCTS]
+  const { data } = await api.get<ProductListResult>('/products', {
+    params: {
+      search: q.search || undefined,
+      brand: q.brand || undefined,
+      category: q.category || undefined,
+      priceMin: q.priceMin,
+      priceMax: q.priceMax,
+      inStockOnly: q.inStockOnly || undefined,
+      originalOnly: q.originalOnly || undefined,
+      sort: q.sort,
+      page: q.page,
+      pageSize: q.pageSize,
+    },
+  })
+  return data
+}
 
-  if (q.search?.trim()) {
-    const s = q.search.trim().toLowerCase()
-    list = list.filter(
-      (p) =>
-        p.name.toLowerCase().includes(s) ||
-        p.article.toLowerCase().includes(s) ||
-        p.oem.some((o) => o.toLowerCase().includes(s)) ||
-        p.brand.toLowerCase().includes(s),
-    )
-  }
-  if (q.brand) list = list.filter((p) => p.brand === q.brand)
-  if (q.category) list = list.filter((p) => p.category === q.category)
-  if (q.priceMin != null) list = list.filter((p) => p.price >= q.priceMin!)
-  if (q.priceMax != null) list = list.filter((p) => p.price <= q.priceMax!)
-  if (q.inStockOnly) list = list.filter((p) => p.inStock)
-  if (q.originalOnly) list = list.filter((p) => p.isOriginal)
+/** Бесконечный скролл: порция по offset */
+export async function fetchProductsOffset(params: {
+  search?: string
+  brand?: string
+  category?: string
+  priceMin?: number
+  priceMax?: number
+  inStockOnly?: boolean
+  originalOnly?: boolean
+  sort?: CatalogSort
+  offset: number
+  limit?: number
+}): Promise<ProductOffsetResult> {
+  const { data } = await api.get<ProductOffsetResult>('/products/offset', {
+    params: {
+      ...params,
+      limit: params.limit ?? 12,
+    },
+  })
+  return data
+}
 
-  const sort = q.sort ?? 'popular'
-  if (sort === 'price-asc') list.sort((a, b) => a.price - b.price)
-  else if (sort === 'price-desc') list.sort((a, b) => b.price - a.price)
-  else if (sort === 'new') list.sort((a, b) => b.id.localeCompare(a.id))
-  else if (sort === 'rating') list.sort((a, b) => b.rating - a.rating)
-  else list.sort((a, b) => b.reviewsCount - a.reviewsCount)
-
-  const pageSize = q.pageSize ?? 12
-  const page = q.page ?? 1
-  const total = list.length
-  const start = (page - 1) * pageSize
-  const items = list.slice(start, start + pageSize)
-  return { items, total, page, pageSize }
+/** Подсказки поиска */
+export async function fetchSearchSuggest(q: string): Promise<Product[]> {
+  if (!q.trim()) return []
+  const { data } = await api.get<{ items: Product[] }>('/products/suggest', { params: { q } })
+  return data.items
 }
 
 export async function fetchProductById(id: string): Promise<Product | null> {
-  await delay(220)
-  const p = MOCK_PRODUCTS.find((x) => x.id === id) ?? null
-  return p
+  try {
+    const { data } = await api.get<Product>(`/products/${id}`)
+    return data
+  } catch {
+    return null
+  }
 }

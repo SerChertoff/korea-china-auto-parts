@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Minus, Plus, ShoppingCart, Star } from 'lucide-react'
@@ -10,8 +10,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Card } from '../components/ui/Card'
 import { Loader } from '../components/common/Loader'
-import { fetchProductById } from '../services/productService'
-import { MOCK_PRODUCTS } from '../data/mockProducts'
+import { fetchProductById, fetchProducts } from '../services/productService'
 import { formatPrice, reviewsWord } from '../utils/formatters'
 import { useCart } from '../hooks/useCart'
 
@@ -32,10 +31,16 @@ export default function ProductPage() {
   })
 
   const p = q.data
-  const similar = useMemo(() => {
-    if (!p) return []
-    return MOCK_PRODUCTS.filter((x) => x.category === p.category && x.id !== p.id).slice(0, 4)
-  }, [p])
+
+  const similarQ = useQuery({
+    queryKey: ['similar', p?.id, p?.category],
+    queryFn: async () => {
+      const r = await fetchProducts({ category: p!.category, page: 1, pageSize: 12 })
+      return r.items.filter((x) => x.id !== p!.id).slice(0, 4)
+    },
+    enabled: Boolean(p?.category),
+  })
+  const similar = similarQ.data ?? []
 
   if (q.isLoading) {
     return (

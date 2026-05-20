@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { motion } from 'framer-motion'
@@ -9,12 +10,11 @@ import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { ProductGrid } from '../components/product/ProductGrid'
+import { ProductCardSkeleton } from '../components/ui/Skeleton'
 import { PART_CATEGORIES } from '../data/categories'
 import { VEHICLE_BRANDS } from '../data/brands'
-import { MOCK_PRODUCTS } from '../data/mockProducts'
+import { fetchProducts } from '../services/productService'
 import { requestPartSchema, type RequestPartForm, vinSchema } from '../utils/validators'
-
-const hits = MOCK_PRODUCTS.slice(0, 8)
 
 const promos = [
   { title: 'Скидка 10% на фильтры Mann', text: 'До конца месяца', tone: 'danger' as const },
@@ -31,6 +31,12 @@ const reviews = [
 /** Главная: промо, категории, бренды, хиты, УТП, отзывы, лид-форма */
 export default function HomePage() {
   const navigate = useNavigate()
+
+  const hitsQuery = useQuery({
+    queryKey: ['home-hits'],
+    queryFn: () => fetchProducts({ page: 1, pageSize: 8, sort: 'popular' }),
+  })
+  const hits = hitsQuery.data?.items ?? []
 
   const vinForm = useForm<{ vin: string }>({
     defaultValues: { vin: '' },
@@ -184,7 +190,15 @@ export default function HomePage() {
             В каталог
           </Link>
         </div>
-        <ProductGrid products={hits} view="grid" />
+        {hitsQuery.isLoading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <ProductCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : (
+          <ProductGrid products={hits} view="grid" />
+        )}
       </section>
 
       {/* Преимущества */}

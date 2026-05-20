@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Локальные данные API (пользователи, заказы, отзывы)
+server/data/app-state.json
