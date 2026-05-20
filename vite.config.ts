@@ -1,7 +1,8 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { writeFileSync } from 'node:fs'
-import path from 'node:path'
 
 const SEO_ROUTES = [
   '/',
@@ -38,8 +39,14 @@ function seoFilesPlugin(siteOrigin: string) {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const site = env.VITE_SITE_URL || 'http://localhost:5173'
+  const rootDir = path.dirname(fileURLToPath(import.meta.url))
   return {
     plugins: [react(), seoFilesPlugin(site)],
+    resolve: {
+      alias: {
+        '@': path.resolve(rootDir, 'src'),
+      },
+    },
     server: {
       proxy: {
         '/api': {

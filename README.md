@@ -23,6 +23,10 @@ npm run dev:full
 
 Переменная **`VITE_SITE_URL`** (см. `.env.example`) задаёт канонический домен для SEO: Open Graph, canonical, JSON-LD, а также `sitemap.xml` и `robots.txt` при `npm run build`. В dev без `.env` используется `http://localhost:5173`.
 
+## UI (shadcn-паттерн)
+
+В корне лежит `components.json`. Базовые компоненты в `src/components/ui/` используют **`cn()`** (`src/lib/utils.ts`), **CVA**, **Radix** (`Dialog`, `Slot`). Добавлять блоки из реестра: `npx shadcn@latest add …` (при необходимости поправьте алиасы под этот проект).
+
 ## API (Express)
 
 - `GET /api/health` — проверка
